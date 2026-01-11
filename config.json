@@ -1,0 +1,348 @@
+{
+    "experimenters": [
+        "Gaudi"
+    ],
+    "google_sheet_url": "https://docs.google.com/spreadsheets/d/1MRhFNor-h7RXP7T8Z4oJgOrRDkqrYSt9XyF4KdOwGH8",
+    "templates": [
+        {
+            "name": "Material_Synthesis",
+            "type": "material_synthesis",
+            "button_label_key": "btn_synthesis",
+            "layout": [
+                { "type": "subheader", "label_key": "ms_subheader_environment" },
+                { "type": "field", "key": "date" },
+                { "type": "field", "key": "investigator" },
+                { "type": "field", "key": "topic" },
+                { "type": "field", "key": "exp_code" },
+                { "type": "field", "key": "rt" },
+                { "type": "field", "key": "humidity" },
+                { "type": "field", "key": "pressure" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "ms_subheader_formulation" },
+                { "type": "field", "key": "exp_title" },
+                { "type": "field", "key": "target_amount" },
+                { "type": "field", "key": "measurements" },
+                { "type": "field", "key": "precursor_ratio" },
+                { "type": "table", "key": "precursor_table" },
+                { "type": "table", "key": "solution_concentration_table" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "ms_subheader_synthesis" },
+                { "type": "field", "key": "solvent" },
+                { "type": "field", "key": "solvent_ml" },
+                { "type": "field", "key": "stirrer_size" },
+                { "type": "field", "key": "stirring_rate" },
+                { "type": "field", "key": "autoclave_temp" },
+                { "type": "field", "key": "reaction_time" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "ms_subheader_post_processing" },
+                { "type": "field", "key": "oven_name" },
+                { "type": "field", "key": "oven_temp" },
+                { "type": "field", "key": "drying_time" },
+                { "type": "field", "key": "drying_temp" },
+                { "type": "field", "key": "washing_water" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "ms_subheader_results" },
+                { "type": "field", "key": "final_weight" },
+                { "type": "field", "key": "foil_used" },
+                { "type": "field", "key": "note" }
+            ],
+            "fields": [
+                {"key": "date", "label_key": "word_date_prefix", "type": "autofill"},
+                {"key": "investigator", "label_key": "operator_label", "type": "autofill"},
+                {"key": "topic", "label_key": "ms_topic_label", "type": "text", "default": "材料合成實驗", "editable": false},
+                {"key": "exp_code", "label_key": "exp_code_label", "type": "text", "default": "", "editable": false},
+                {"key": "rt", "label_key": "room_temp_c_label", "type": "number", "optional": true, "group": "environment"},
+                {"key": "humidity", "label_key": "humidity_percent_label", "type": "number", "optional": true, "group": "environment"},
+                {"key": "pressure", "label_key": "pressure_hpa_label", "type": "number", "optional": true, "group": "environment"},
+
+                {"key": "exp_title", "label_key": "exp_title_label", "type": "text", "group": "goal"},
+                {"key": "target_amount", "label_key": "ms_target_amount_label", "type": "number", "group": "goal"},
+                {"key": "measurements", "label_key": "ms_measurements_label", "type": "text", "group": "goal"},
+                {"key": "precursor_ratio", "label_key": "ms_precursor_ratio_label", "type": "text", "group": "goal"},
+
+                {"key": "solvent", "label_key": "ms_solvent_label", "type": "text", "group": "synthesis_params"},
+                {"key": "solvent_ml", "label_key": "ms_solvent_ml_label", "type": "number", "group": "synthesis_params"},
+                {"key": "stirrer_size", "label_key": "ms_stirrer_size_label", "type": "text", "group": "synthesis_params"},
+                {"key": "stirring_rate", "label_key": "ms_stirring_rate_label", "type": "number", "group": "synthesis_params"},
+                {"key": "autoclave_temp", "label_key": "ms_autoclave_temp_label", "type": "number", "group": "synthesis_params"},
+                {"key": "reaction_time", "label_key": "ms_reaction_time_label", "type": "number", "group": "synthesis_params"},
+
+                {"key": "oven_name", "label_key": "ms_oven_name_label", "type": "text", "group": "post_processing"},
+                {"key": "oven_temp", "label_key": "ms_oven_temp_label", "type": "number", "group": "post_processing"},
+                {"key": "drying_time", "label_key": "ms_drying_time_label", "type": "number", "group": "post_processing"},
+                {"key": "drying_temp", "label_key": "ms_drying_temp_label", "type": "number", "group": "post_processing"},
+                {"key": "washing_water", "label_key": "ms_washing_water_label", "type": "text", "group": "post_processing"},
+
+                {"key": "final_weight", "label_key": "ms_final_weight_label", "type": "number", "optional": true, "group": "results"},
+                {"key": "foil_used", "label_key": "ms_foil_used_label", "type": "text", "optional": true, "group": "results"},
+                {"key": "note", "label_key": "notes_label", "type": "textarea", "optional": true, "group": "results"}
+            ],
+            "tables": [
+                {
+                    "key": "precursor_table",
+                    "label_key": "ms_precursor_table_label",
+                    "columns": [
+                        {"key": "precursor", "label_key": "ms_precursor_col", "type": "text", "required": true},
+                        {"key": "m_wt", "label_key": "ms_m_wt_col", "type": "number", "format": "%.4f"},
+                        {"key": "mole", "label_key": "ms_mole_col", "type": "number", "format": "%.4f"},
+                        {"key": "calculated_weight", "label_key": "ms_calculated_weight_col", "type": "number", "format": "%.4f"},
+                        {"key": "real_weight", "label_key": "ms_real_weight_col", "type": "number", "format": "%.4f"}
+                    ]
+                },
+                {
+                    "key": "solution_concentration_table",
+                    "label_key": "ms_solution_concentration_table_label",
+                    "columns": [
+                        {"key": "compound", "label_key": "ms_compound_col", "type": "text", "required": true},
+                        {"key": "m_wt", "label_key": "ms_m_wt_col", "type": "number", "format": "%.4f"},
+                        {"key": "mole", "label_key": "ms_mole_col", "type": "number", "format": "%.4f"},
+                        {"key": "calculated_weight", "label_key": "ms_calculated_weight_col", "type": "number", "format": "%.4f"},
+                        {"key": "real_weight", "label_key": "ms_real_weight_col", "type": "number", "format": "%.4f"},
+                        {"key": "concentration", "label_key": "ms_concentration_col", "type": "number", "format": "%.4f"}
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Electrochemical_Testing",
+            "type": "electrochem",
+            "button_label_key": "btn_electrochem",
+            "layout": [
+                { "type": "field", "key": "exp_code" },
+                { "type": "subheader", "label_key": "glove_box_subheader" },
+                { "type": "field", "key": "gb_rt" },
+                { "type": "field", "key": "gb_humidity" },
+                { "type": "field", "key": "gb_oxygen" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "battery_setup_subheader" },
+                { "type": "field", "key": "exp_title" },
+                { "type": "field", "key": "cell_holder" },
+                { "type": "field", "key": "measurements" },
+                { "type": "field", "key": "cell_type" },
+                { "type": "field", "key": "fab_pressure" },
+                { "type": "field", "key": "stack_pressure" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "test_params_subheader" },
+                { "type": "field", "key": "machine" },
+                { "type": "field", "key": "channel" },
+                { "type": "field", "key": "area" },
+                { "type": "field", "key": "current" },
+                { "type": "field", "key": "areal_capacity" },
+                { "type": "field", "key": "current_density" },
+                { "type": "field", "key": "lithium_deposition_time" },
+                { "type": "field", "key": "q_total" },
+                { "type": "field", "key": "c_rate" },
+                { "type": "field", "key": "voltage_range" },
+                { "type": "field", "key": "note" },
+                { "type": "divider" },
+                { "type": "subheader", "label_key": "tables_subheader" },
+                { "type": "table", "key": "cathode_table" },
+                { "type": "table", "key": "anode_table" },
+                { "type": "table", "key": "electrolyte_table" }
+            ],
+            "stoichiometry": null,
+            "fields": [
+                {
+                    "key": "date",
+                    "label_key": "word_date_prefix",
+                    "type": "autofill"
+                },
+                {
+                    "key": "investigator",
+                    "label_key": "operator_label",
+                    "type": "autofill"
+                },
+                {
+                    "key": "topic",
+                    "label_key": "research_topic_label",
+                    "type": "autofill"
+                },
+                {
+                    "key": "exp_code",
+                    "label_key": "exp_code_label",
+                    "type": "text",
+                    "default": "EXP-001"
+                },
+                {
+                    "key": "gb_rt",
+                    "label_key": "gb_rt_label",
+                    "type": "number",
+                    "default": 25,
+                    "group": "glove_box"
+                },
+                {
+                    "key": "gb_humidity",
+                    "label_key": "gb_humidity_label",
+                    "type": "number",
+                    "default": 0.1,
+                    "step": 0.1,
+                    "group": "glove_box"
+                },
+                {
+                    "key": "gb_oxygen",
+                    "label_key": "gb_oxygen_label",
+                    "type": "number",
+                    "default": 0.1,
+                    "step": 0.1,
+                    "group": "glove_box"
+                },
+                {
+                    "key": "exp_title",
+                    "label_key": "exp_title_label",
+                    "type": "text",
+                    "default": "Electrochemical Test",
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "cell_holder",
+                    "label_key": "cell_holder_label",
+                    "type": "text",
+                    "default": "Swagelok",
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "measurements",
+                    "label_key": "measurements_label",
+                    "type": "text",
+                    "default": "CV, GCD",
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "cell_type",
+                    "label_key": "cell_type_label",
+                    "type": "radio",
+                    "options": [
+                        "HC",
+                        "FC",
+                        "SC"
+                    ],
+                    "default": "HC",
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "fab_pressure",
+                    "label_key": "fab_pressure_label",
+                    "type": "number",
+                    "default": 10,
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "stack_pressure",
+                    "label_key": "stack_pressure_label",
+                    "type": "number",
+                    "default": 350,
+                    "group": "battery_setup"
+                },
+                {
+                    "key": "machine",
+                    "label_key": "machine_label",
+                    "type": "text",
+                    "default": "BioLogic VMP-300",
+                    "group": "test_params"
+                },
+                {
+                    "key": "channel",
+                    "label_key": "channel_label",
+                    "type": "text",
+                    "default": "CH-01",
+                    "group": "test_params"
+                },
+                {
+                    "key": "area",
+                    "label_key": "area_label",
+                    "type": "number",
+                    "default": 1.13,
+                    "step": 0.01,
+                    "group": "test_params",
+                    "format": "%.4f"
+                },
+                {
+                    "key": "current",
+                    "label_key": "current_label",
+                    "type": "number",
+                    "default": 0.001,
+                    "step": 0.0001,
+                    "group": "test_params",
+                    "format": "%.6f"
+                },
+                {
+                    "key": "areal_capacity",
+                    "label_key": "areal_capacity_label",
+                    "type": "number",
+                    "default": 1.0,
+                    "step": 0.1,
+                    "group": "test_params",
+                    "format": "%.4f"
+                },
+                {
+                    "key": "current_density",
+                    "label_key": "current_density_label",
+                    "type": "number",
+                    "default": 1.0,
+                    "step": 0.1,
+                    "group": "test_params",
+                    "format": "%.4f"
+                },
+                {
+                    "key": "lithium_deposition_time",
+                    "label_key": "lithium_deposition_time_label",
+                    "type": "number",
+                    "default": 1.0,
+                    "step": 0.1,
+                    "group": "test_params",
+                    "format": "%.2f"
+                },
+                {
+                    "key": "q_total",
+                    "label_key": "q_total_label",
+                    "type": "number",
+                    "default": 1.0,
+                    "step": 0.1,
+                    "group": "test_params",
+                    "format": "%.3f"
+                },
+                {
+                    "key": "c_rate",
+                    "label_key": "c_rate_label",
+                    "type": "text",
+                    "default": "1C",
+                    "group": "test_params"
+                },
+                {
+                    "key": "voltage_range",
+                    "label_key": "voltage_range_label",
+                    "type": "text",
+                    "default": "0.01-3.0V",
+                    "group": "test_params"
+                },
+                {
+                    "key": "note",
+                    "label_key": "notes_label",
+                    "type": "textarea",
+                    "optional": true,
+                    "group": "test_params"
+                }
+            ]
+        },
+        {
+            "name": "SEM Analysis",
+            "type": "analysis",
+            "button_label_key": "btn_analysis",
+            "stoichiometry": null,
+            "fields": [
+                {
+                    "key": "sample_id",
+                    "label_key": "sample_id_label",
+                    "type": "text",
+                    "default": "Sample-01"
+                },
+                {
+                    "key": "notes",
+                    "label_key": "notes_label",
+                    "type": "textarea",
+                    "optional": false
+                }
+            ]
+        }
+    ]
+}
