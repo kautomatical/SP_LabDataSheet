@@ -585,7 +585,6 @@ def main():
             st.session_state['creds'] = flow.credentials
             # Get user info
             from google.oauth2 import id_token
-            from google.auth.transport import requests
             id_info = id_token.verify_oauth2_token(st.session_state['creds'].id_token, requests.Request(), st.secrets["GOOGLE_CLIENT_ID"])
             st.session_state['user_info'] = id_info
             
@@ -612,6 +611,7 @@ def main():
                                     token_uri="https://oauth2.googleapis.com/token", # Hardcoded for now
                                     client_id=st.secrets["GOOGLE_CLIENT_ID"],
                                     client_secret=st.secrets["GOOGLE_CLIENT_SECRET"])
+                from google.auth.transport import requests # Import locally to guarantee availability
                 creds.refresh(requests.Request()) # Refresh to get new access token
                 st.session_state['creds'] = creds
                 
@@ -623,7 +623,8 @@ def main():
                 
                 st.rerun() # Rerun to update UI as logged in
             except Exception as e:
-                st.warning(f"自動登入失敗，請重新登入: {e}")
+                st.warning(f"自動登入失敗，請重新登入:")
+                st.exception(e) # Print full traceback for debugging
                 del cookies_manager['refresh_token'] # Clear invalid cookie
                 cookies_manager.save()
 
