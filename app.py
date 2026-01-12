@@ -89,8 +89,8 @@ def show_logout_button(cookies_manager): # cookies_manager added as argument
         for key in ['creds', 'user_info', 'gspread_client']:
             if key in st.session_state:
                 del st.session_state[key]
-        del cookies_manager['refresh_token'] # Clear the refresh token cookie
-        cookies_manager.save() # Persist the cookie deletion
+        cookies_manager['refresh_token'] = '' # Overwrite cookie with empty string
+        cookies_manager.save() # Persist the change
         st.rerun()
 
 # --- Core App Logic ---
@@ -597,7 +597,8 @@ def main():
             st.query_params.clear()
             st.rerun()
         except Exception as e:
-            st.error(f"Error during login: {e}")
+            st.error(f"Error during login:")
+            st.exception(e)
             st.stop()
 
     # --- Auto-login from cookie ---
@@ -611,13 +612,11 @@ def main():
                                     token_uri="https://oauth2.googleapis.com/token", # Hardcoded for now
                                     client_id=st.secrets["GOOGLE_CLIENT_ID"],
                                     client_secret=st.secrets["GOOGLE_CLIENT_SECRET"])
-                from google.auth.transport import requests # Import locally to guarantee availability
                 creds.refresh(requests.Request()) # Refresh to get new access token
                 st.session_state['creds'] = creds
                 
                 # Get user info for display
                 from google.oauth2 import id_token
-                from google.auth.transport import requests
                 id_info = id_token.verify_oauth2_token(creds.id_token, requests.Request(), st.secrets["GOOGLE_CLIENT_ID"])
                 st.session_state['user_info'] = id_info
                 
