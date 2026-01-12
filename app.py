@@ -7,10 +7,10 @@ import datetime
 import os
 import io
 import zipfile
-from google_auth_oauthlib.flow import Flow
+from google.auth.transport import requests # Moved to top-level import
 from google.oauth2.credentials import Credentials
-
-# --- Language and Config Loading ---
+from google_auth_oauthlib.flow import Flow # Moved to top-level import
+from streamlit_cookies_manager import EncryptedCookieManager # New Import
 
 @st.cache_data
 def load_config(file_path):
@@ -69,14 +69,15 @@ def gspread_client_from_creds(_credentials):
     return gspread.authorize(_credentials)
 
 def show_login_button():
-    """Shows the Google Login button."""
+    """Shows the Google Login button and cookie consent."""
     flow = get_google_flow()
     authorization_url, _ = flow.authorization_url(prompt='consent')
     st.markdown(f'<h1>{l.get("main_menu_title")}</h1>', unsafe_allow_html=True)
     st.markdown(l.get('login_prompt', "Please log in with your Google account to continue."))
     st.link_button("Login with Google", authorization_url, width='stretch')
+    st.markdown(l.get('cookie_consent_message', ""), unsafe_allow_html=True) # New consent message
 
-def show_logout_button():
+def show_logout_button(cookies_manager): # cookies_manager added as argument
     """Shows user info and a logout button."""
     st.sidebar.divider()
     if 'user_info' in st.session_state:
@@ -88,54 +89,66 @@ def show_logout_button():
         for key in ['creds', 'user_info', 'gspread_client']:
             if key in st.session_state:
                 del st.session_state[key]
+        del cookies_manager['refresh_token'] # Clear the refresh token cookie
+        cookies_manager.save() # Persist the cookie deletion
         st.rerun()
 
 # --- Core App Logic ---
 
-def check_exp_code_in_sheet(client, sheet_url, exp_code):
-    """Checks if an exp_code already exists in the Google Sheet."""
+def check_exp_code_in_sheet(client, sheet_url, exp_code, worksheet_name):
+    """Checks if an exp_code already exists in a specific worksheet."""
     if not exp_code:
         return False, "實驗編號不得為空 (Experimental code cannot be empty.)"
     try:
-        sheet = client.open_by_url(sheet_url).sheet1
+        spreadsheet = client.open_by_url(sheet_url)
+        try:
+            sheet = spreadsheet.worksheet(worksheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            return True, f"✅ 實驗編號 '{exp_code}' 可用 (分頁 '{worksheet_name}' 尚不存在)。"
+
         header = sheet.row_values(1)
         if 'exp_code' not in header:
-            return True, "警告：在目標 Google Sheet 中找不到 'exp_code' 欄位，無法檢查唯一性。 (Warning: 'exp_code' column not found in target Google Sheet, cannot check for uniqueness.)"
+            return True, "警告：在目標分頁中找不到 'exp_code' 欄位，無法檢查唯一性。"
         
         exp_code_col_index = header.index('exp_code') + 1
-        existing_codes = sheet.col_values(exp_code_col_index)[1:] # Exclude header
+        existing_codes = sheet.col_values(exp_code_col_index)[1:]
         
         if exp_code in existing_codes:
-            return False, f"❌ 實驗編號 '{exp_code}' 已存在，請更換。 (Experimental code '{exp_code}' already exists. Please use a different one.)"
+            return False, f"❌ 實驗編號 '{exp_code}' 已在分頁 '{worksheet_name}' 中存在。"
         else:
-            return True, f"✅ 實驗編號 '{exp_code}' 可用。 (Experimental code '{exp_code}' is available.)"
+            return True, f"✅ 實驗編號 '{exp_code}' 在分頁 '{worksheet_name}' 中可用。"
     except gspread.exceptions.SpreadsheetNotFound:
-        return True, "警告：找不到指定的 Google Sheet，無法檢查唯一性。 (Warning: Specified Google Sheet not found, cannot check for uniqueness.)"
+        return True, "警告：找不到指定的 Google Sheet，無法檢查唯一性。"
     except Exception as e:
-        return False, f"🚨 檢查實驗編號時發生錯誤: {e} (Error checking experimental code: {e})"
+        return False, f"🚨 檢查實驗編號時發生錯誤: {e}"
 
-def append_to_sheet(client, sheet_url, data_dict):
+def append_to_sheet(client, sheet_url, data_dict, worksheet_name):
     """
-    Appends a dictionary of data as a new row to the specified Google Sheet,
-    ensuring the 'exp_code' is unique.
+    Appends a dictionary of data as a new row to a specific worksheet,
+    ensuring the 'exp_code' is unique within that worksheet.
     Returns:
         (bool, str): A tuple containing a success boolean and a message.
     """
     try:
-        sheet = client.open_by_url(sheet_url).sheet1
-        
+        spreadsheet = client.open_by_url(sheet_url)
+        try:
+            sheet = spreadsheet.worksheet(worksheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            # Create the worksheet if it doesn't exist
+            sheet = spreadsheet.add_worksheet(title=worksheet_name, rows="100", cols="50")
+
         # Uniqueness check for exp_code
         exp_code_to_check = data_dict.get('exp_code')
         if exp_code_to_check:
             header = sheet.row_values(1)
-            if 'exp_code' in header:
+            if header and 'exp_code' in header:
                 exp_code_col_index = header.index('exp_code') + 1
                 existing_codes = sheet.col_values(exp_code_col_index)[1:]
                 if exp_code_to_check in existing_codes:
-                    msg = f"❌ 提交失敗：實驗編號 '{exp_code_to_check}' 已存在。 (Submission failed: Experimental code '{exp_code_to_check}' already exists.)"
+                    msg = f"❌ 提交失敗：實驗編號 '{exp_code_to_check}' 已在分頁 '{worksheet_name}' 中存在。"
                     return False, msg
 
-        # Flatten data and append if unique
+        # Flatten data and append
         flat_data = {key: json.dumps(value, ensure_ascii=False) if isinstance(value, list) else value for key, value in data_dict.items()}
         df = pd.DataFrame([flat_data])
         
@@ -143,6 +156,13 @@ def append_to_sheet(client, sheet_url, data_dict):
         if not existing_headers:
             sheet.update([df.columns.values.tolist()] + df.values.tolist())
         else:
+            # Ensure all columns from the new data are present in the sheet
+            new_cols = [col for col in df.columns if col not in existing_headers]
+            if new_cols:
+                # Append new columns to the sheet
+                sheet.update(f'{gspread.utils.rowcol_to_a1(1, len(existing_headers) + 1)}', [new_cols])
+                existing_headers.extend(new_cols)
+
             df_ordered = pd.DataFrame(columns=existing_headers)
             df_ordered = pd.concat([df_ordered, df], ignore_index=True)
             values_to_append = df_ordered.fillna('').values.tolist()
@@ -156,6 +176,13 @@ def append_to_sheet(client, sheet_url, data_dict):
         return False, f"{l.get('submit_gspread_error')}: {e}"
 
 # --- Dynamic Page Rendering ---
+
+
+def _get_cookies_manager():
+    return EncryptedCookieManager(
+        prefix="labdatasheet-",
+        password=st.secrets.get("COOKIE_ENCRYPTION_KEY", "default-insecure-key") # Use a default key for local dev if not set
+    )
 
 def _render_dynamic_field(field_def, form_data_key, selected_experimenter, template_name, config):
     """Helper to render a single field from a template definition."""
@@ -196,7 +223,7 @@ def _render_dynamic_field(field_def, form_data_key, selected_experimenter, templ
                     st.warning(l.get('batch_export_url_missing', "Please configure the sheet URL in Settings."))
                 else:
                     with st.spinner("Checking..."):
-                        is_unique, message = check_exp_code_in_sheet(st.session_state.gspread_client, sheet_url, widget)
+                        is_unique, message = check_exp_code_in_sheet(st.session_state.gspread_client, sheet_url, widget, template['type'])
                         st.session_state[f'{form_data_key}_check_message'] = message
                         st.session_state[f'{form_data_key}_is_unique'] = is_unique
         
@@ -319,7 +346,7 @@ def page_dynamic_template_runner(config, template):
                 st.warning(l.get('gcp_url_not_set_warning'))
             else:
                 with st.spinner(l.get('submit_spinner_writing')):
-                    success, message = append_to_sheet(st.session_state.gspread_client, sheet_url, final_form_data)
+                    success, message = append_to_sheet(st.session_state.gspread_client, sheet_url, final_form_data, template['type'])
                     if success:
                         st.success(message)
                     else:
@@ -452,7 +479,7 @@ def page_dynamic_template_runner(config, template):
                 st.warning(l.get('gcp_url_not_set_warning'))
             else:
                 with st.spinner(l.get('submit_spinner_writing')):
-                    success, message = append_to_sheet(st.session_state.gspread_client, sheet_url, final_form_data)
+                    success, message = append_to_sheet(st.session_state.gspread_client, sheet_url, final_form_data, template['type'])
                     if success:
                         st.success(message)
                     else:
@@ -477,7 +504,7 @@ def page_batch_export(config):
 
     sheet_url = config.get('google_sheet_url', '')
 
-    st.info(l.get('batch_export_info', "This feature will read all data from the configured Google Sheet and generate a Word document for each row, then package them into a single .zip file for you to download."))
+    st.info(l.get('batch_export_info', "This feature will read all data from all tabs in the configured Google Sheet and generate a Word document for each row, then package them into a single .zip file for you to download."))
     
     if not sheet_url:
         st.warning(l.get('batch_export_url_missing', "⚠️ Please go to the Settings page to configure the target Google Sheet URL first."))
@@ -485,43 +512,48 @@ def page_batch_export(config):
 
     st.markdown(f"**Source Google Sheet:** `{sheet_url}`")
 
-    if st.button(l.get('batch_export_button', "Generate Word Documents from Google Sheet"), type="primary", width='stretch'):
+    if st.button(l.get('batch_export_button', "Generate All Word Documents from Google Sheet"), type="primary", width='stretch'):
         try:
-            with st.spinner(l.get('batch_export_spinner', "Reading data from Google Sheet and generating Word documents... Please wait.")):
-                # 1. Read all data from the sheet
-                sheet = st.session_state.gspread_client.open_by_url(sheet_url).sheet1
-                records = sheet.get_all_records()
-
-                if not records:
-                    st.warning(l.get('batch_export_no_data', "No data found in the specified Google Sheet."))
-                    return
-
-                # 2. Prepare a zip file in memory
+            with st.spinner(l.get('batch_export_spinner', "Reading data and generating Word documents... Please wait.")):
+                spreadsheet = st.session_state.gspread_client.open_by_url(sheet_url)
                 zip_buffer = io.BytesIO()
-                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-                    # 3. Loop through each record, reconstruct data, generate Word doc, and add to zip
-                    for i, record in enumerate(records):
-                        # Reconstruct data that was stored as JSON strings
-                        reconstructed_record = record.copy()
-                        for key, value in reconstructed_record.items():
-                            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
-                                try:
-                                    reconstructed_record[key] = json.loads(value)
-                                except json.JSONDecodeError:
-                                    # Not a valid JSON string, keep original value
-                                    pass
-                        
-                        template_name = reconstructed_record.get('topic', 'UnknownTemplate')
-                        
-                        file_stream = export_to_word(reconstructed_record, template_name, l)
-                        
-                        # Generate a unique filename for each doc
-                        filename = f"{reconstructed_record.get('date', 'nodate')}_{reconstructed_record.get('exp_code', f'row_{i+2}')}.docx"
-                        zf.writestr(filename, file_stream.getvalue())
+                total_docs_generated = 0
 
-                st.session_state.zip_buffer = zip_buffer
-                st.session_state.zip_filename = f"BatchExport_{datetime.date.today().strftime('%Y-%m-%d')}.zip"
-                st.success(l.get('batch_export_success', "✅ Successfully generated {count} Word documents.").format(count=len(records)))
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    # Loop through each template defined in config
+                    for template in config['templates']:
+                        worksheet_name = template['type']
+                        try:
+                            sheet = spreadsheet.worksheet(worksheet_name)
+                        except gspread.exceptions.WorksheetNotFound:
+                            continue # Skip if tab doesn't exist
+
+                        records = sheet.get_all_records()
+                        if not records:
+                            continue
+
+                        # Loop through each record in the current worksheet
+                        for i, record in enumerate(records):
+                            reconstructed_record = record.copy()
+                            for key, value in reconstructed_record.items():
+                                if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                                    try:
+                                        reconstructed_record[key] = json.loads(value)
+                                    except json.JSONDecodeError:
+                                        pass
+                            
+                            file_stream = export_to_word(reconstructed_record, template['name'], l)
+                            
+                            filename = f"{worksheet_name}/{reconstructed_record.get('date', 'nodate')}_{reconstructed_record.get('exp_code', f'row_{i+2}')}.docx"
+                            zf.writestr(filename, file_stream.getvalue())
+                            total_docs_generated += 1
+
+                if total_docs_generated > 0:
+                    st.session_state.zip_buffer = zip_buffer
+                    st.session_state.zip_filename = f"BatchExport_{datetime.date.today().strftime('%Y-%m-%d')}.zip"
+                    st.success(l.get('batch_export_success', "✅ Successfully generated {count} Word documents.").format(count=total_docs_generated))
+                else:
+                    st.warning(l.get('batch_export_no_data', "No data found in any worksheet to export."))
 
         except Exception as e:
             st.error(l.get('batch_export_error', "🚨 An error occurred during the process."))
@@ -534,19 +566,16 @@ def page_batch_export(config):
             file_name=st.session_state.zip_filename,
             mime="application/zip",
             width='stretch',
-            on_click=lambda: (st.session_state.pop('zip_buffer', None), st.session_state.pop('zip_filename', None)) # Clear after click
+            on_click=lambda: (st.session_state.pop('zip_buffer', None), st.session_state.pop('zip_filename', None))
         )
-
-def page_placeholder(page_title_key, info_key):
-    st.title(l.get(page_title_key))
-    if st.button(l.get('btn_back_to_menu')):
-        st.session_state.page = 'main_menu'
-        st.rerun()
-    st.divider()
-    st.info(l.get(info_key))
 
 # --- Main App Router ---
 def main():
+    # --- Initialize Cookie Manager ---
+    cookies_manager = _get_cookies_manager()
+    if not cookies_manager.ready():
+        st.stop() # Wait for cookies to be ready
+
     # Handle OAuth2 callback
     query_params = st.query_params
     if 'code' in query_params and 'creds' not in st.session_state:
@@ -557,14 +586,46 @@ def main():
             # Get user info
             from google.oauth2 import id_token
             from google.auth.transport import requests
-            id_info = id_token.verify_oauth2_token(flow.credentials.id_token, requests.Request(), st.secrets["GOOGLE_CLIENT_ID"])
+            id_info = id_token.verify_oauth2_token(st.session_state['creds'].id_token, requests.Request(), st.secrets["GOOGLE_CLIENT_ID"])
             st.session_state['user_info'] = id_info
+            
+            # --- Save refresh token to cookie ---
+            if st.session_state['creds'].refresh_token:
+                cookies_manager['refresh_token'] = st.session_state['creds'].refresh_token
+                cookies_manager.save()
+            
             # Clear query params
             st.query_params.clear()
             st.rerun()
         except Exception as e:
             st.error(f"Error during login: {e}")
             st.stop()
+
+    # --- Auto-login from cookie ---
+    if 'creds' not in st.session_state:
+        refresh_token_from_cookie = cookies_manager.get('refresh_token')
+        if refresh_token_from_cookie:
+            try:
+                # Build dummy creds with refresh token
+                creds = Credentials(None,
+                                    refresh_token=refresh_token_from_cookie,
+                                    token_uri="https://oauth2.googleapis.com/token", # Hardcoded for now
+                                    client_id=st.secrets["GOOGLE_CLIENT_ID"],
+                                    client_secret=st.secrets["GOOGLE_CLIENT_SECRET"])
+                creds.refresh(requests.Request()) # Refresh to get new access token
+                st.session_state['creds'] = creds
+                
+                # Get user info for display
+                from google.oauth2 import id_token
+                from google.auth.transport import requests
+                id_info = id_token.verify_oauth2_token(creds.id_token, requests.Request(), st.secrets["GOOGLE_CLIENT_ID"])
+                st.session_state['user_info'] = id_info
+                
+                st.rerun() # Rerun to update UI as logged in
+            except Exception as e:
+                st.warning(f"自動登入失敗，請重新登入: {e}")
+                del cookies_manager['refresh_token'] # Clear invalid cookie
+                cookies_manager.save()
 
     # If not logged in, show login button
     if 'creds' not in st.session_state:
@@ -578,7 +639,7 @@ def main():
     if 'page' not in st.session_state:
         st.session_state.page = 'main_menu'
     
-    show_logout_button()
+    show_logout_button(cookies_manager) # Pass cookies_manager
     st.sidebar.title(l.get('sidebar_setup_title'))
     if st.sidebar.button(l.get('btn_settings', "Settings"), width='stretch'):
         st.session_state.page = 'settings'

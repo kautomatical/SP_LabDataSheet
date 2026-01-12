@@ -124,6 +124,7 @@
         "word_experimenter_prefix": "實驗者 (Experimenter): ",
 
         "optional_tag": " (選填 / Optional)",
+        "cookie_consent_message": "點擊登入，即表示您同意我們使用必要的 Cookie 來記住您的登入狀態，以改善您的使用體驗。我們不會將此資訊用於任何其他目的。",
         
         "research_topic_label": "研究主題 (Research Topic)",
         "product_needed_g_label": "目標產物量 (g) (Amount of product needed (g))",
